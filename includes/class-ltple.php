@@ -31,7 +31,6 @@ class LTPLE_App_Blogger {
 		$this->file 		= $file;
 		$this->dir 			= dirname( $this->file );
 		$this->views   		= trailingslashit( $this->dir ) . 'views';
-		$this->vendor  		= trailingslashit( WP_PLUGIN_DIR ) . 'live-template-editor-app-google/vendor';
 		$this->assets_dir 	= trailingslashit( $this->dir ) . 'assets';
 		$this->assets_url 	= esc_url( trailingslashit( plugins_url( '/assets/', $this->file ) ) );
 		//$this->script_suffix = defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min';

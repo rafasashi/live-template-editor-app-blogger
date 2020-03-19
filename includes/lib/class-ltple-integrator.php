@@ -14,8 +14,10 @@ class LTPLE_Integrator_Blogger {
 		
 		$this->parent 		= $parent;
 		$this->parent->apps = $apps;
+		
+		$this->vendor = trailingslashit( WP_PLUGIN_DIR ) . 'live-template-editor-app-google/vendor';
 
-		if( !file_exists($this->parent->vendor . '/autoload.php') ){
+		if( !file_exists($this->vendor . '/autoload.php') ){
 			
 			$_SESSION['message'] = '<div class="alert alert-danger">';
 				
@@ -23,8 +25,12 @@ class LTPLE_Integrator_Blogger {
 					
 			$_SESSION['message'] .= '</div>';		
 		}
-		else{			
+		else{		
+
+			// include google SDK
 			
+			include_once($this->vendor . '/autoload.php');
+
 			// get app term
 
 			$this->term = get_term_by('slug',$app_slug,'app-type');
@@ -52,7 +58,7 @@ class LTPLE_Integrator_Blogger {
 					
 					$this->oauthConfig = json_decode('{"web":{"client_id":"'.CONSUMER_KEY.'","project_id":"'.API_PROJECT.'","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://accounts.google.com/o/oauth2/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_secret":"'.CONSUMER_SECRET.'","redirect_uris":["'.OAUTH_CALLBACK.'"],"javascript_origins":["'.JS_ORIGINS.'"]}}', true);
 					
-					//Set client
+					//Set client 
 					
 					$this->client = new Google_Client();
 					
@@ -103,6 +109,11 @@ class LTPLE_Integrator_Blogger {
 			}
 		}
 	}
+	
+	public function init_app(){	
+		
+
+	}	
 
 	public function appImportImg(){
 		
