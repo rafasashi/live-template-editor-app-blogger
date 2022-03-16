@@ -28,7 +28,7 @@ class LTPLE_Integrator_Blogger extends LTPLE_Client_Integrator {
 				$goo_consumer_key 		= array_search('goo_consumer_key', $this->parameters['key']);
 				$goo_consumer_secret 	= array_search('goo_consumer_secret', $this->parameters['key']);
 				$goo_oauth_callback 	= $this->parent->urls->apps;
-
+				
 				if( !empty($this->parameters['value'][$goo_api_project]) && !empty($this->parameters['value'][$goo_consumer_key]) && !empty($this->parameters['value'][$goo_consumer_secret]) ){
 				
 					define('API_PROJECT', 		$this->parameters['value'][$goo_api_project]);
@@ -85,63 +85,9 @@ class LTPLE_Integrator_Blogger extends LTPLE_Client_Integrator {
 		}
 	}
 
-	public function appImportImg(){
-		
-		if(!empty($_REQUEST['id'])){
-		
-			if( $this->app = $this->parent->apps->getAppData( $_REQUEST['id'], $this->parent->user->ID, true ) ){
-				
-				$this->client->setAccessToken($this->app);		
-
-				if($this->client->isAccessTokenExpired()){  
-				
-					// refresh the token
-				
-					$this->client->refreshToken($this->app);
-				}
-				
-				$service = new Google_Service_Blogger($this->client);
-				
-				$blog = $service->posts->listPosts($this->app['blog_id'],['fetchImages'=>true]);
-				
-				$urls = [];
-				
-				if(!empty($blog->items)){
-					
-					foreach($blog->items as $item){
-
-						if(!empty($item->images)){
-							
-							foreach($item->images as $image){
-								
-								$img_title	= basename($image['url']);
-								$img_url	= $image['url'];
-								
-								if(!get_page_by_title( $img_title, OBJECT, 'user-image' )){
-									
-									if($image_id = wp_insert_post(array(
-								
-										'post_author' 	=> $this->parent->user->ID,
-										'post_title' 	=> $img_title,
-										'post_content' 	=> $img_url,
-										'post_type' 	=> 'user-image',
-										'post_status' 	=> 'publish'
-									))){
-										
-										wp_set_object_terms( $image_id, $this->term->term_id, 'app-type' );
-									}
-								}								
-							}						
-						}
-					}
-				}
-			}
-		}
-	}
-	
 	public function appConnect(){
 
-		if( !$access_token = $this->parent->session->get_user_data('access_token') ){
+		if( !empty($_REQUEST['action']) ){
 
 			$this->parent->session->update_user_data('app',$this->app_slug);
 			$this->parent->session->update_user_data('action',$_REQUEST['action']);
@@ -255,6 +201,60 @@ class LTPLE_Integrator_Blogger extends LTPLE_Client_Integrator {
 			//flush session
 				
 			$this->reset_session();	
+		}
+	}
+	
+	public function appImportImg(){
+		
+		if(!empty($_REQUEST['id'])){
+		
+			if( $this->app = $this->parent->apps->getAppData( $_REQUEST['id'], $this->parent->user->ID, true ) ){
+				
+				$this->client->setAccessToken($this->app);		
+
+				if($this->client->isAccessTokenExpired()){  
+				
+					// refresh the token
+				
+					$this->client->refreshToken($this->app);
+				}
+				
+				$service = new Google_Service_Blogger($this->client);
+				
+				$blog = $service->posts->listPosts($this->app['blog_id'],['fetchImages'=>true]);
+				
+				$urls = [];
+				
+				if(!empty($blog->items)){
+					
+					foreach($blog->items as $item){
+
+						if(!empty($item->images)){
+							
+							foreach($item->images as $image){
+								
+								$img_title	= basename($image['url']);
+								$img_url	= $image['url'];
+								
+								if(!get_page_by_title( $img_title, OBJECT, 'user-image' )){
+									
+									if($image_id = wp_insert_post(array(
+								
+										'post_author' 	=> $this->parent->user->ID,
+										'post_title' 	=> $img_title,
+										'post_content' 	=> $img_url,
+										'post_type' 	=> 'user-image',
+										'post_status' 	=> 'publish'
+									))){
+										
+										wp_set_object_terms( $image_id, $this->term->term_id, 'app-type' );
+									}
+								}								
+							}						
+						}
+					}
+				}
+			}
 		}
 	}
 	
