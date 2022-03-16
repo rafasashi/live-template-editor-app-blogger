@@ -2,28 +2,19 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class LTPLE_Integrator_Blogger {
+class LTPLE_Integrator_Blogger extends LTPLE_Client_Integrator {
 	
-	var $parent;
-	var $apps;
-	
-	/**
-	 * Constructor function
-	 */
-	public function __construct ( $app_slug, $parent, $apps ) {
+	public function init_app(){
 		
-		$this->parent 		= $parent;
-		$this->parent->apps = $apps;
-		
-		$this->vendor = trailingslashit( WP_PLUGIN_DIR ) . 'live-template-editor-app-google/vendor';
+		$this->vendor = trailingslashit( dirname($this->parent->dir) ) . 'live-template-editor-app-google/vendor';
 
 		if( !file_exists($this->vendor . '/autoload.php') ){
 			
-			$_SESSION['message'] = '<div class="alert alert-danger">';
+			$message = '<div class="alert alert-danger">';
 				
-				$_SESSION['message'] .= 'Sorry, Google API is not available on this platform yet, please contact the dev team...';
+				$message .= 'Sorry, Google API is not yet available on this platform, please contact the dev team...';
 					
-			$_SESSION['message'] .= '</div>';		
+			$message .= '</div>';		
 		}
 		else{		
 
@@ -31,26 +22,18 @@ class LTPLE_Integrator_Blogger {
 			
 			include_once($this->vendor . '/autoload.php');
 
-			// get app term
-
-			$this->term = get_term_by('slug',$app_slug,'app-type');
+			if( isset($this->parameters['key']) ){
 			
-			// get app parameters
-			
-			$parameters = get_option('parameters_'.$app_slug);
-			
-			if( isset($parameters['key']) ){
-			
-				$goo_api_project 		= array_search('goo_api_project', $parameters['key']);
-				$goo_consumer_key 		= array_search('goo_consumer_key', $parameters['key']);
-				$goo_consumer_secret 	= array_search('goo_consumer_secret', $parameters['key']);
+				$goo_api_project 		= array_search('goo_api_project', $this->parameters['key']);
+				$goo_consumer_key 		= array_search('goo_consumer_key', $this->parameters['key']);
+				$goo_consumer_secret 	= array_search('goo_consumer_secret', $this->parameters['key']);
 				$goo_oauth_callback 	= $this->parent->urls->apps;
 
-				if( !empty($parameters['value'][$goo_api_project]) && !empty($parameters['value'][$goo_consumer_key]) && !empty($parameters['value'][$goo_consumer_secret]) ){
+				if( !empty($this->parameters['value'][$goo_api_project]) && !empty($this->parameters['value'][$goo_consumer_key]) && !empty($this->parameters['value'][$goo_consumer_secret]) ){
 				
-					define('API_PROJECT', 		$parameters['value'][$goo_api_project]);
-					define('CONSUMER_KEY', 		$parameters['value'][$goo_consumer_key]);
-					define('CONSUMER_SECRET', 	$parameters['value'][$goo_consumer_secret]);
+					define('API_PROJECT', 		$this->parameters['value'][$goo_api_project]);
+					define('CONSUMER_KEY', 		$this->parameters['value'][$goo_consumer_key]);
+					define('CONSUMER_SECRET', 	$this->parameters['value'][$goo_consumer_secret]);
 					define('OAUTH_CALLBACK', 	$goo_oauth_callback);
 					
 					$callback=parse_url(OAUTH_CALLBACK);
@@ -78,42 +61,29 @@ class LTPLE_Integrator_Blogger {
 					
 					$this->client->setAccessType('offline');
 					
-					// get current action
+					// init action
+			
+					if( $action = $this->get_current_action() ){
 					
-					$this->action = '';
-					
-					if(!empty($_REQUEST['action'])){
-						
-						$this->action = $_REQUEST['action'];
-					}
-					elseif(!empty($_SESSION['action'])){
-						
-						$this->action = $_SESSION['action'];
-					}
-					
-					$methodName = 'app'.ucfirst($this->action);
-
-					if(method_exists($this,$methodName)){
-						
-						$this->$methodName();
+						$this->init_action($action);
 					}
 				}
 				else{
 					
-					$_SESSION['message'] = '<div class="alert alert-danger">';
+					$message = '<div class="alert alert-danger">';
 						
-						$_SESSION['message'] .= 'Sorry, blogger is not available on this platform yet, please contact the dev team...';
+						$message .= 'Sorry, blogger is not available on this platform yet, please contact the dev team...';
 							
-					$_SESSION['message'] .= '</div>';				
+					$message .= '</div>';				
 				}
 			}
 		}
-	}
-	
-	public function init_app(){	
 		
-
-	}	
+		if( !empty($message) ){
+			
+			$this->parent->session->update_user_data('message',$message);
+		}
+	}
 
 	public function appImportImg(){
 		
@@ -170,143 +140,125 @@ class LTPLE_Integrator_Blogger {
 	}
 	
 	public function appConnect(){
+
+		if( !$access_token = $this->parent->session->get_user_data('access_token') ){
+
+			$this->parent->session->update_user_data('app',$this->app_slug);
+			$this->parent->session->update_user_data('action',$_REQUEST['action']);
+			$this->parent->session->update_user_data('ref',$this->get_ref_url());
+				
+			$this->oauth_url = $this->client->createAuthUrl();
 		
-		if( isset($_REQUEST['action']) ){
-			
-			if(!isset($_SESSION['token'])){
-
-				$_SESSION['app'] 				= 'blogger';
-				$_SESSION['action'] 			= $_REQUEST['action'];
-				$_SESSION['ref'] 				= ( !empty($_REQUEST['ref']) ? $this->parent->request->proto . urldecode($_REQUEST['ref']) : '');
-
-				$this->oauth_url = $this->client->createAuthUrl();
-			
-				wp_redirect($this->oauth_url);
-				echo 'Redirecting blogger oauth...';
-				exit;
-			}			
-		}
-		elseif( isset($_SESSION['action']) ){
-			
-			if(!isset($_SESSION['access_token'])){
+			wp_redirect($this->oauth_url);
+			echo 'Redirecting blogger oauth...';
+			exit;
+		}			
+		elseif(isset($_REQUEST['code'])){
 				
-				// handle connect callback
+			//get access_token
+			
+			$this->access_token =  $this->client->fetchAccessTokenWithAuthCode($_REQUEST['code']);				
+			
+			$this->reset_session();				
+			
+			//store access_token in session					
+			
+			$this->parent->session->update_user_data('access_token',$this->access_token);
+
+			//set access_token	
+			
+			$this->client->setAccessToken($this->access_token);	
+			
+			//start the service
+			
+			$service=new Google_Service_Blogger($this->client);
+			
+			//get user blogs
+			
+			$blogs = $service->blogs->listByUser('self');
+			
+			if(!empty($blogs->items)){
 				
-				if(isset($_REQUEST['code'])){
-					
-					//get access_token
-					
-					$this->access_token =  $this->client->fetchAccessTokenWithAuthCode($_REQUEST['code']);				
-					
-					if(!empty($_SESSION)){
-						
-						//flush session
-						
-						$_SESSION = array();			
-					}				
-					
-					//store access_token in session					
-					$_SESSION['access_token'] = $this->access_token;
+				foreach($blogs->items as $blog){
 
-					//set access_token	
-					$this->client->setAccessToken($this->access_token);	
-					
-					//start the service
-					$service=new Google_Service_Blogger($this->client);
-					
-					//get user blogs
-					
-					$blogs = $service->blogs->listByUser('self');
-					
-					if(!empty($blogs->items)){
+					if( $blog->status === 'LIVE' ){
+
+						// get blog id
 						
-						foreach($blogs->items as $blog){
-
-							if( $blog->status === 'LIVE' ){
-
-								// get blog id
-								
-								$this->access_token['blog_id'] = $blog->id;		
-								
-								// get blog name
-								
-								preg_match('`^https?:\/\/(.*)\.blogspot`',$blog->url,$matches);
-								
-								$blog_name = $matches[1];
-
-								$this->access_token['blog_name'] = $blog_name;
-
-								// store access_token in database		
-								
-								$app_title = wp_strip_all_tags( 'blogger - ' . $blog_name );
-								
-								$app_item = get_page_by_title( $app_title, OBJECT, 'user-app' );
-								
-								if( empty($app_item) ){
-									
-									// create app item
-									
-									$app_id = wp_insert_post(array(
-									
-										'post_title'   	 	=> $app_title,
-										'post_status'   	=> 'publish',
-										'post_type'  	 	=> 'user-app',
-										'post_author'   	=> $this->parent->user->ID
-									));
-									
-									wp_set_object_terms( $app_id, $this->term->term_id, 'app-type' );
-									
-									// hook connected app
-									
-									do_action( 'ltple_blogger_account_connected');
-									
-									$this->parent->apps->newAppConnected();
-								}
-								else{
-
-									$app_id = $app_item->ID;
-								}
-									
-								// update app item
-									
-								update_post_meta( $app_id, 'appData', json_encode($this->access_token,JSON_PRETTY_PRINT));							
-							}							
-						}
-					}
-					
-					if(!empty($_SESSION['ref'])){
+						$this->access_token['blog_id'] = $blog->id;		
 						
-						$redirect_url = $_SESSION['ref'];
+						// get blog name
 						
-						$_SESSION['ref'] = '';
+						preg_match('`^https?:\/\/(.*)\.blogspot`',$blog->url,$matches);
 						
-						wp_redirect($redirect_url);
-						echo 'Redirecting blogger callback...';
-						exit;	
-					}
-					else{
-						
-						// store success message
+						$blog_name = $matches[1];
 
-						$_SESSION['message'] = '<div class="alert alert-success">';
+						$this->access_token['blog_name'] = $blog_name;
+
+						// store access_token in database		
+						
+						$app_title = wp_strip_all_tags( 'blogger - ' . $blog_name );
+						
+						$app_item = get_page_by_title( $app_title, OBJECT, 'user-app' );
+						
+						if( empty($app_item) ){
 							
-							$_SESSION['message'] .= 'Congratulations, you have successfully connected a Blogger account!';
-								
-						$_SESSION['message'] .= '</div>';						
-					}
-				}
-				elseif(!empty($_SESSION)){
-					
-					//flush session
-					
-					$_SESSION = array();			
+							// create app item
+							
+							$app_id = wp_insert_post(array(
+							
+								'post_title'   	 	=> $app_title,
+								'post_status'   	=> 'publish',
+								'post_type'  	 	=> 'user-app',
+								'post_author'   	=> $this->parent->user->ID
+							));
+							
+							wp_set_object_terms( $app_id, $this->term->term_id, 'app-type' );
+							
+							// hook connected app
+							
+							do_action( 'ltple_blogger_account_connected');
+							
+							$this->parent->apps->newAppConnected();
+						}
+						else{
+
+							$app_id = $app_item->ID;
+						}
+							
+						// update app item
+							
+						update_post_meta( $app_id, 'appData', json_encode($this->access_token,JSON_PRETTY_PRINT));							
+					}							
 				}
 			}
+			
+			// store success message
+
+			$message = '<div class="alert alert-success">';
+					
+				$message .= 'Congratulations, you have successfully connected a Blogger account!';
+						
+			$message .= '</div>';
+
+			$this->parent->session->update_user_data('message',$message);						
+						
+			if( $redirect_url = $this->parent->session->get_user_data('ref') ){
+				
+				wp_redirect($redirect_url);
+				echo 'Redirecting blogger callback...';
+				exit;	
+			}
+		}
+		else{
+			
+			//flush session
+				
+			$this->reset_session();	
 		}
 	}
 	
 	public function appPostArticle( $app_id, $article){
-		
 
 		if( $this->app = $this->parent->apps->getAppData( $app_id, $this->parent->user->ID, true ) ){
 

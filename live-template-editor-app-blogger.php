@@ -1,7 +1,7 @@
 <?php
 /*
  * Plugin Name: Live Template Editor App Blogger
- * Version: 1.0
+ * Version: 1.0.2.2
  * Plugin URI: https://github.com/rafasashi
  * Description: Blogger API integrator for Live Template Editor.
  * Author: Rafasashi
